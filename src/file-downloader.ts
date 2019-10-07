@@ -1,9 +1,10 @@
-import { S3, Request } from "aws-sdk";
-import fs from 'fs';
+import { S3 } from "aws-sdk";
 import { AWS } from './aws';
 import DB from "./db";
 import { getConfig } from "./config-helper";
 import * as readline from 'readline'
+const mkdirp = require('mkdirp-promise');
+const fs = require('fs');
 
 export default class FileDownloader {
     private db: DB;
@@ -14,33 +15,7 @@ export default class FileDownloader {
         this.s3 = AWS.getS3();
     }
 
-    private async getObject(path: string): Promise<S3.GetObjectOutput> {
-        const keyConfig = {
-            Bucket: getConfig().BUCKET_NAME,
-            Key: path,
-          };
-          let soundFile = null;
-          await this.s3.getObject(keyConfig, (error, data) => {
-              if(error) {
-                  console.log('aws getObject error ' + path , error);
-              } 
-              else {
-                soundFile = data;
-              }
-          });
-          return soundFile;
-    }
-
-    async getClip(path: string): Promise<S3.GetObjectOutput> {
-        try {
-          return await this.getObject(path);
-        } catch (e) {
-          console.log('aws error', e, e.stack);
-          return null;
-        }
-    }
-
-    async getAllValidClips(clipDirLoc: string, infoFileLoc: string) {
+    public async getAllValidClips(clipDirLoc: string, infoFileLoc: string): Promise<void> {
       try {
           const clips = await this.db.getAllValidClips(); 
           if(!fs.existsSync(clipDirLoc)) {
@@ -50,12 +25,12 @@ export default class FileDownloader {
             });
           }
           if(!fs.existsSync(infoFileLoc)) {
-            fs.writeFile(infoFileLoc, "path,sentance,sex,age,native_language", (err) => {
+            fs.writeFile(infoFileLoc, "path,sentance,sex,age,native_language\n", (err) => {
               if(err) throw err;
             });
           }
           const clipsSize = clips.length;
-          let clipsIndex = 0
+          let clipsNumber = 1;
           clips.forEach(async ({ id, path, sentence, sex, age, native_language }) => {
             const keyConfig = {
               Bucket: getConfig().BUCKET_NAME,
@@ -68,23 +43,28 @@ export default class FileDownloader {
             if(infoFileLoc[infoFileLoc.length - 1] != '/') { 
               infoFileLoc = infoFileLoc + '/'; 
             }
-
             const clipInfo = path + '\t' + sentence + '\t' + sex + '\t' + age + '\t' + native_language;
-            
-            const fileStream = fs.createWriteStream(clipDirLoc);
-            await this.s3.getObject(keyConfig).createReadStream().pipe(fileStream);
-            fs.appendFileSync(infoFileLoc, clipInfo);
-            this.printProgress(clipsIndex, clipsSize);
-            clipsIndex++;
+            const filePath = path.slice(0, path.lastIndexOf('/'));
+            await mkdirp(clipDirLoc + filePath).catch(() => {
+              console.log("error")
+            });
+            const fileStream = fs.createWriteStream(clipDirLoc + path);
+            this.s3.getObject(keyConfig).createReadStream().pipe(fileStream);
+            fs.appendFileSync(infoFileLoc, clipInfo + '\n');
+            this.printProgress(clipsNumber, clipsSize);
+            clipsNumber++;
           });
         } catch (e) {
           console.log('Error downloading files: ', e, e.stack);
         }
     }
 
-    printProgress(i: number, max: number): void {
+    private printProgress(i: number, max: number): void {
       readline.clearLine(process.stdout, 0);
       readline.cursorTo(process.stdout, 0, null);
-      process.stdout.write(i + '/' + max);
+      process.stdout.write('### ' + i + ' / ' + max + ' ###');
+      if(i == max) {
+        process.stdout.write('\n');
+      }
     }
 }
