@@ -31,7 +31,7 @@ export default class FileDownloader {
           }
           const clipsSize = clips.length;
           let clipsNumber = 1;
-          clips.forEach(async ({ id, path, sentence, sex, age, native_language }) => {
+          clips.forEach(async ({ path, sentence, sex, age, native_language }) => {
             const keyConfig = {
               Bucket: getConfig().BUCKET_NAME,
               Key: path,
