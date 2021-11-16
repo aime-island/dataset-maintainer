@@ -12,7 +12,7 @@
     "@types/mysql": "^2.15.6",
     "@types/node": "^12.7.1",
     "@types/node-schedule": "^1.2.3",
-    "aws-sdk": "^2.543.0",
+    "aws-sdk": "^2.814.0",
     "common": "^0.2.5",
     "esm": "^3.2.25",
     "fs": "^0.0.1-security",
